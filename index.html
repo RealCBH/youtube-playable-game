@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Reaction Game</title>
+  <style>
+    body {
+      text-align: center;
+      font-family: Arial;
+      background: #111;
+      color: white;
+    }
+    #gameButton {
+      margin-top: 50px;
+      padding: 20px 40px;
+      font-size: 24px;
+      background: red;
+      border: none;
+      color: white;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+<h1>Reaction Game</h1>
+<p id="status">Wait for green...</p>
+<button id="gameButton" disabled>Click!</button>
+
+<script>
+let startTime;
+
+const button = document.getElementById("gameButton");
+const status = document.getElementById("status");
+
+function startGame() {
+  status.textContent = "Wait for green...";
+  button.style.background = "red";
+  button.disabled = true;
+
+  let delay = Math.random() * 3000 + 2000;
+
+  setTimeout(() => {
+    button.style.background = "green";
+    status.textContent = "CLICK NOW!";
+    startTime = Date.now();
+    button.disabled = false;
+  }, delay);
+}
+
+button.onclick = () => {
+  let reactionTime = Date.now() - startTime;
+  status.textContent = "Your time: " + reactionTime + " ms";
+  startGame();
+};
+
+startGame();
+</script>
+
+</body>
+</html>
