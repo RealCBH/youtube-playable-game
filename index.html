@@ -4,15 +4,8 @@
   <meta charset="UTF-8">
   <title>Space Boost</title>
   <style>
-    body {
-      margin: 0;
-      overflow: hidden;
-      background: black;
-      font-family: Arial, sans-serif;
-    }
-    canvas {
-      display: block;
-    }
+    body { margin:0; overflow:hidden; background:black; font-family:Arial; }
+    canvas { display:block; }
   </style>
 </head>
 <body>
@@ -25,216 +18,205 @@ const ctx = canvas.getContext("2d");
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
-// ---------- GAME STATE ----------
-let state = "menu"; // menu, playing, gameover
+// ---------------- STATE ----------------
+let state = "menu";
+let message = "";
+let messageTimer = 0;
 
-// ---------- PLAYER ----------
-const ship = {
-  x: canvas.width / 2,
-  y: canvas.height / 2,
-  size: 20,
-  velY: 0
-};
+// ---------------- PLAYER ----------------
+const ship = { x: canvas.width/2, y: canvas.height/2, vy:0, size:20 };
 
-// ---------- METERS ----------
+// ---------------- STATS ----------------
 let fuel = 100;
-let heat = 0;
-let distance = 0;
-let money = 0;
+let fuelCapLevel = 0;
+let thrustLevel = 0;
+let moneyMultiLevel = 0;
 
-// ---------- INPUT ----------
+let fuelCap = 100;
+let thrustPower = 0.3;
+let moneyMulti = 1;
+
+let money = 0;
+let distance = 0;
+
+// ---------------- INPUT ----------------
 let holding = false;
-window.addEventListener("mousedown", () => holding = true);
+window.addEventListener("mousedown", e => { holding = true; handleClick(e); });
 window.addEventListener("mouseup", () => holding = false);
-window.addEventListener("touchstart", () => holding = true);
+window.addEventListener("touchstart", e => { holding = true; handleClick(e.touches[0]); });
 window.addEventListener("touchend", () => holding = false);
 
-// ---------- STARS ----------
-const stars = [];
-for (let i = 0; i < 200; i++) {
-  stars.push({
-    x: Math.random() * canvas.width,
-    y: Math.random() * canvas.height * 2,
-    s: Math.random() * 2
-  });
-}
+// ---------------- STARS ----------------
+const stars = Array.from({length:200}, () => ({
+  x: Math.random()*canvas.width,
+  y: Math.random()*canvas.height*2,
+  s: Math.random()*2
+}));
 
-// ---------- PLANETS ----------
-const planets = [
-  { x: 300, y: 800, r: 40, speed: 0.2 },
-  { x: 900, y: 1400, r: 60, speed: 0.15 }
-];
+// ---------------- GAME ----------------
+function update(){
+  if(state==="playing"){
 
-// ---------- EXPLOSION ----------
-let pieces = [];
-let exploded = false;
-
-// ---------- GAME LOOP ----------
-function update() {
-  if (state === "playing") {
-
-    // movement
-    if (holding && fuel > 0 && heat < 100) {
-      ship.velY -= 0.3;
+    // BOOST (UNCHANGED CORE FEEL)
+    if(holding && fuel > 0){
+      ship.vy -= thrustPower;
       fuel -= 0.4;
-      heat += 0.8;
-    } else {
-      heat -= 0.5;
-      fuel += 0.2;
     }
 
-    heat = Math.max(0, Math.min(100, heat));
-    fuel = Math.max(0, Math.min(100, fuel));
+    // GRAVITY
+    ship.vy += 0.15;
+    ship.vy *= 0.98;
+    ship.y += ship.vy;
 
-    ship.velY += 0.15; // gravity
-    ship.velY *= 0.98;
-    ship.y += ship.velY;
+    // NO FUEL REGEN (IMPORTANT CHANGE)
+    fuel = Math.max(0, fuel);
 
-    // distance
-    distance += Math.max(0, -ship.velY) * 0.05;
-    money = Math.floor(distance / 10);
+    // DISTANCE + MONEY
+    distance += Math.max(0, -ship.vy)*0.05;
+    money = Math.floor(distance/10) * moneyMulti;
 
-    // star movement (infinite scroll illusion)
-    stars.forEach(s => {
-      s.y += 2 + Math.abs(ship.velY) * 0.3;
-      if (s.y > canvas.height * 2) s.y = 0;
+    // STARS MOVE
+    stars.forEach(s=>{
+      s.y += 2;
+      if(s.y > canvas.height*2) s.y = 0;
     });
 
-    // planets
-    planets.forEach(p => {
-      p.y += 1 + p.speed;
-      if (p.y > canvas.height * 2) p.y = -100;
-    });
-
-    // crash conditions
-    if (heat >= 100 || fuel <= 0 || ship.y > canvas.height) {
-      explode();
+    // CRASH
+    if(fuel <= 0 || ship.y > canvas.height){
+      state = "menu";
+      ship.y = canvas.height/2;
     }
   }
 
-  // explosion physics
-  pieces.forEach(p => {
-    p.x += p.vx;
-    p.y += p.vy;
-    p.vy += 0.1;
-  });
-}
-
-function explode() {
-  if (exploded) return;
-  exploded = true;
-  state = "gameover";
-
-  for (let i = 0; i < 5; i++) {
-    pieces.push({
-      x: ship.x,
-      y: ship.y,
-      vx: (Math.random() - 0.5) * 6,
-      vy: (Math.random() - 0.5) * 6
-    });
+  if(messageTimer > 0){
+    messageTimer--;
+    if(messageTimer === 0) message = "";
   }
 }
 
-// ---------- DRAW ----------
-function draw() {
-  ctx.fillStyle = "black";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+// ---------------- DRAW ----------------
+function draw(){
+  ctx.fillStyle="black";
+  ctx.fillRect(0,0,canvas.width,canvas.height);
 
-  // stars
-  ctx.fillStyle = "white";
-  stars.forEach(s => {
-    ctx.fillRect(s.x, s.y, s.s, s.s);
-  });
+  // STARS
+  ctx.fillStyle="white";
+  stars.forEach(s=>ctx.fillRect(s.x,s.y,s.s,s.s));
 
-  // planets
-  ctx.fillStyle = "rgba(100,150,255,0.4)";
-  planets.forEach(p => {
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-    ctx.fill();
-  });
+  if(state==="playing"){
+    // SHIP
+    ctx.fillStyle="white";
+    ctx.fillRect(ship.x-10,ship.y-10,20,20);
 
-  if (state === "playing") {
-
-    // ship
-    ctx.fillStyle = "white";
-    ctx.fillRect(ship.x - 10, ship.y - 10, 20, 20);
-
-    // bars (left heat)
-    ctx.fillStyle = "gray";
-    ctx.fillRect(20, canvas.height/2 - 100, 20, 200);
-    ctx.fillStyle = "red";
-    ctx.fillRect(20, canvas.height/2 + 100 - heat*2, 20, heat*2);
-
-    // bars (right fuel)
-    ctx.fillStyle = "gray";
-    ctx.fillRect(canvas.width - 40, canvas.height/2 - 100, 20, 200);
-    ctx.fillStyle = "green";
-    ctx.fillRect(canvas.width - 40, canvas.height/2 + 100 - fuel*2, 20, fuel*2);
-
-    // explosion pieces
-    pieces.forEach(p => {
-      ctx.fillStyle = "orange";
-      ctx.fillRect(p.x, p.y, 8, 8);
-    });
+    // LEFT BAR (fuel)
+    ctx.fillStyle="gray";
+    ctx.fillRect(20,canvas.height/2-100,20,200);
+    ctx.fillStyle="green";
+    ctx.fillRect(20,canvas.height/2+100-(fuel/fuelCap)*200,20,(fuel/fuelCap)*200);
 
     // HUD
-    ctx.fillStyle = "white";
-    ctx.fillText("Money: $" + money, 20, 30);
+    ctx.fillStyle="white";
+    ctx.fillText("Money: $"+money,20,30);
   }
 
-  if (state === "menu") {
-    ctx.fillStyle = "white";
-    ctx.textAlign = "center";
-    ctx.font = "30px Arial";
-    ctx.fillText("SPACE BOOST", canvas.width/2, canvas.height/2);
-    ctx.font = "16px Arial";
-    ctx.fillText("Click / Tap to Start", canvas.width/2, canvas.height/2 + 40);
-  }
+  if(state==="menu"){
+    ctx.textAlign="center";
 
-  if (state === "gameover") {
-    ctx.fillStyle = "white";
-    ctx.textAlign = "center";
-    ctx.font = "30px Arial";
-    ctx.fillText("Spaceship Overheated!", canvas.width/2, canvas.height/2);
-    ctx.font = "20px Arial";
-    ctx.fillText("Money: $" + money, canvas.width/2, canvas.height/2 + 40);
-    ctx.fillText("Click to return to menu", canvas.width/2, canvas.height/2 + 80);
+    // MESSAGE
+    if(message){
+      ctx.globalAlpha = messageTimer/60;
+      ctx.fillStyle="red";
+      ctx.font="20px Arial";
+      ctx.fillText(message,canvas.width/2,60);
+      ctx.globalAlpha = 1;
+    }
+
+    ctx.fillStyle="white";
+    ctx.font="30px Arial";
+    ctx.fillText("SPACE BOOST",canvas.width/2,80);
+
+    drawUpgradeBox(150,150,"Fuel Capacity",fuelCapLevel);
+    drawUpgradeBox(150,300,"Thrust Speed",thrustLevel);
+    drawUpgradeBox(canvas.width-350,150,"Money Multiplier",moneyMultiLevel);
   }
 }
 
-// ---------- LOOP ----------
-function loop() {
+// ---------------- UPGRADE BOX ----------------
+function drawUpgradeBox(x,y,title,level){
+  const w=200,h=120;
+
+  ctx.strokeStyle="white";
+  ctx.strokeRect(x,y,w,h);
+
+  ctx.fillStyle="white";
+  ctx.font="16px Arial";
+  ctx.fillText(title,x+w/2,y+25);
+  ctx.fillText("Level: "+level+"/5",x+w/2,y+50);
+
+  // button
+  ctx.fillStyle="green";
+  ctx.fillRect(x+20,y+70,w-40,30);
+  ctx.fillStyle="black";
+  ctx.fillText(cost(level)+"$",x+w/2,y+92);
+}
+
+// ---------------- COST ----------------
+function cost(lvl){
+  return Math.floor(10 * Math.pow(1.8,lvl));
+}
+
+// ---------------- CLICK ----------------
+function handleClick(e){
+  if(state==="menu"){
+    const x=e.clientX,y=e.clientY;
+
+    if(y>150 && y<270 && x>150 && x<350) buy("fuel");
+    if(y>300 && y<420 && x>150 && x<350) buy("thrust");
+    if(y>150 && y<270 && x>canvas.width-350 && x<canvas.width-150) buy("money");
+
+    state="playing";
+  }
+}
+
+// ---------------- BUY ----------------
+function buy(type){
+  if(type==="fuel"){
+    if(money >= cost(fuelCapLevel) && fuelCapLevel<5){
+      money -= cost(fuelCapLevel);
+      fuelCapLevel++;
+      fuelCap += 20;
+    } else fail();
+  }
+
+  if(type==="thrust"){
+    if(money >= cost(thrustLevel) && thrustLevel<5){
+      money -= cost(thrustLevel);
+      thrustLevel++;
+      thrustPower += 0.1;
+    } else fail();
+  }
+
+  if(type==="money"){
+    if(money >= cost(moneyMultiLevel) && moneyMultiLevel<5){
+      money -= cost(moneyMultiLevel);
+      moneyMultiLevel++;
+      moneyMulti += 0.5;
+    } else fail();
+  }
+}
+
+function fail(){
+  message="Not enough money";
+  messageTimer=120;
+}
+
+// ---------------- LOOP ----------------
+function loop(){
   update();
   draw();
   requestAnimationFrame(loop);
 }
 loop();
-
-// ---------- STATE CONTROLS ----------
-window.addEventListener("mousedown", handleClick);
-window.addEventListener("touchstart", handleClick);
-
-function handleClick() {
-  if (state === "menu") {
-    state = "playing";
-    reset();
-  } else if (state === "gameover") {
-    state = "menu";
-  }
-}
-
-function reset() {
-  ship.x = canvas.width / 2;
-  ship.y = canvas.height / 2;
-  ship.velY = 0;
-  fuel = 100;
-  heat = 0;
-  distance = 0;
-  money = 0;
-  pieces = [];
-  exploded = false;
-}
 </script>
 
 </body>
