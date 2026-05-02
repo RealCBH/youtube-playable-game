@@ -1,17 +1,3 @@
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<title>Space Boost</title>
-<style>
-body { margin:0; overflow:hidden; background:black; font-family:Arial; }
-canvas { display:block; }
-</style>
-</head>
-
-<body>
-<canvas id="game"></canvas>
-
 <script>
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
@@ -21,29 +7,32 @@ canvas.height = window.innerHeight;
 
 /* ================= STATE ================= */
 let state = "menu";
+let gameOverType = "";
 let message = "";
 let messageTimer = 0;
 
-/* ================= PLAYER ================= */
+/* ================= SHIP ================= */
 const ship = {
   x: canvas.width/2,
   y: canvas.height/2,
-  vy: 0
+  vy: 0,
+  size: 18
 };
 
-/* ================= GAME STATS ================= */
+/* ================= STATS ================= */
 let fuel = 100;
 let heat = 0;
+let runMoney = 0;
+let totalMoney = 0;
 let distance = 0;
-let money = 0;
 
 /* upgrades */
 let fuelLevel = 0;
 let thrustLevel = 0;
 let moneyLevel = 0;
 
-let fuelCap = 100;
-let thrustPower = 0.3;
+let fuelCap = 120; // slightly buffed
+let thrustPower = 0.28; // slightly reduced = harder boost
 let moneyMulti = 1;
 
 /* ================= INPUT ================= */
@@ -53,17 +42,12 @@ window.addEventListener("mouseup", () => holding = false);
 window.addEventListener("touchstart", () => holding = true);
 window.addEventListener("touchend", () => holding = false);
 
-/* ================= BACKGROUND ================= */
+/* ================= WORLD ================= */
 const stars = Array.from({length:250}, () => ({
   x: Math.random()*canvas.width,
   y: Math.random()*canvas.height*2,
   s: Math.random()*2
 }));
-
-const planets = [
-  {x:300,y:900,r:40,s:0.2},
-  {x:900,y:1400,r:60,s:0.15}
-];
 
 /* ================= EXPLOSION ================= */
 let pieces = [];
@@ -77,40 +61,43 @@ if(state === "playing"){
   /* BOOST */
   if(holding && fuel > 0 && heat < 100){
     ship.vy -= thrustPower;
-    fuel -= 0.35;
-    heat += 0.9;
+    fuel -= 0.32;
+    heat += 0.7; // slower overheating (requested)
   }
 
-  /* COOLING */
   if(!holding){
-    heat -= 0.6;
+    heat -= 0.45;
   }
 
   heat = Math.max(0, Math.min(100, heat));
-  fuel = Math.max(0, fuel); // NO REGEN
+  fuel = Math.max(0, fuel);
 
   /* PHYSICS */
-  ship.vy += 0.15;
+  ship.vy += 0.14;
   ship.vy *= 0.98;
   ship.y += ship.vy;
 
-  /* DISTANCE + MONEY */
-  distance += Math.max(0, -ship.vy)*0.05;
-  money = Math.floor(distance/10) * moneyMulti;
+  /* SCREEN LIMIT (IMPORTANT ADDITION) */
+  ship.y = Math.max(30, Math.min(canvas.height-30, ship.y));
 
-  /* BACKGROUND MOVE */
+  /* MONEY (RUN ONLY) */
+  distance += Math.max(0, -ship.vy)*0.05;
+  runMoney = Math.floor(distance/10) * moneyMulti;
+
+  /* BACKGROUND */
   stars.forEach(s=>{
     s.y += 2;
     if(s.y > canvas.height*2) s.y = 0;
   });
 
-  planets.forEach(p=>{
-    p.y += 1 + p.s;
-    if(p.y > canvas.height*2) p.y = -100;
-  });
+  /* FAIL CONDITIONS */
+  if(heat >= 100){
+    gameOverType = "heat";
+    explode();
+  }
 
-  /* CRASH CONDITIONS */
-  if(fuel <= 0 || heat >= 100 || ship.y > canvas.height){
+  if(fuel <= 0){
+    gameOverType = "fuel";
     explode();
   }
 }
@@ -135,7 +122,10 @@ if(exploded) return;
 exploded = true;
 state = "gameover";
 
-for(let i=0;i<6;i++){
+/* add run money to total ONLY on game end */
+totalMoney += runMoney;
+
+for(let i=0;i<7;i++){
   pieces.push({
     x: ship.x,
     y: ship.y,
@@ -154,23 +144,15 @@ ctx.fillRect(0,0,canvas.width,canvas.height);
 ctx.fillStyle="white";
 stars.forEach(s=>ctx.fillRect(s.x,s.y,s.s,s.s));
 
-/* planets */
-ctx.fillStyle="rgba(100,150,255,0.3)";
-planets.forEach(p=>{
-  ctx.beginPath();
-  ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
-  ctx.fill();
-});
-
-/* ================= PLAYING ================= */
+/* ================= PLAY ================= */
 if(state === "playing"){
 
-  /* POINTY SHIP */
+  /* BIGGER SHIP */
   ctx.fillStyle="white";
   ctx.beginPath();
-  ctx.moveTo(ship.x, ship.y - 15);
-  ctx.lineTo(ship.x - 10, ship.y + 10);
-  ctx.lineTo(ship.x + 10, ship.y + 10);
+  ctx.moveTo(ship.x, ship.y - 22);
+  ctx.lineTo(ship.x - 14, ship.y + 18);
+  ctx.lineTo(ship.x + 14, ship.y + 18);
   ctx.closePath();
   ctx.fill();
 
@@ -178,31 +160,31 @@ if(state === "playing"){
   if(holding && fuel > 0){
     ctx.fillStyle="red";
     ctx.beginPath();
-    ctx.moveTo(ship.x, ship.y + 10);
-    ctx.lineTo(ship.x - 5, ship.y + 25 + Math.random()*5);
-    ctx.lineTo(ship.x + 5, ship.y + 25 + Math.random()*5);
+    ctx.moveTo(ship.x, ship.y + 18);
+    ctx.lineTo(ship.x - 6, ship.y + 35 + Math.random()*5);
+    ctx.lineTo(ship.x + 6, ship.y + 35 + Math.random()*5);
     ctx.fill();
   }
 
-  /* HUD BARS */
-
-  /* HEAT (left) */
+  /* HEAT */
   ctx.fillStyle="gray";
   ctx.fillRect(20, canvas.height/2-100, 20, 200);
   ctx.fillStyle="red";
   ctx.fillRect(20, canvas.height/2+100-(heat*2), 20, heat*2);
 
-  /* FUEL (right) */
+  /* FUEL */
   ctx.fillStyle="gray";
   ctx.fillRect(canvas.width-40, canvas.height/2-100, 20, 200);
   ctx.fillStyle="green";
   ctx.fillRect(canvas.width-40, canvas.height/2+100-(fuel/fuelCap)*200, 20,(fuel/fuelCap)*200);
 
-  /* pieces */
+  /* EXPLOSION */
   ctx.fillStyle="orange";
-  pieces.forEach(p=>{
-    ctx.fillRect(p.x,p.y,6,6);
-  });
+  pieces.forEach(p=>ctx.fillRect(p.x,p.y,6,6));
+
+  /* HUD */
+  ctx.fillStyle="white";
+  ctx.fillText("Run: $" + runMoney,20,30);
 }
 
 /* ================= MENU ================= */
@@ -210,26 +192,18 @@ if(state === "menu"){
 
 ctx.textAlign="center";
 
-if(message){
-  ctx.globalAlpha = messageTimer/60;
-  ctx.fillStyle="red";
-  ctx.font="20px Arial";
-  ctx.fillText(message,canvas.width/2,60);
-  ctx.globalAlpha=1;
-}
-
 ctx.fillStyle="white";
 ctx.font="30px Arial";
 ctx.fillText("SPACE BOOST",canvas.width/2,80);
 
-/* MONEY (MENU ONLY) */
 ctx.font="18px Arial";
-ctx.fillText("Money: $" + money, canvas.width/2, 110);
+ctx.fillText("Money: $" + totalMoney,canvas.width/2,110);
 
-/* UPGRADES */
+/* upgrades */
 drawBox(150,150,"Fuel Capacity",fuelLevel);
 drawBox(150,300,"Thrust Power",thrustLevel);
 drawBox(canvas.width-350,150,"Money Multiplier",moneyLevel);
+
 }
 
 /* ================= GAME OVER ================= */
@@ -238,13 +212,18 @@ if(state === "gameover"){
 ctx.textAlign="center";
 ctx.fillStyle="white";
 ctx.font="30px Arial";
-ctx.fillText("Spaceship Overheated!",canvas.width/2,canvas.height/2);
 
-ctx.font="18px Arial";
-ctx.fillText("Money: $" + money,canvas.width/2,canvas.height/2+40);
+/* SEPARATE END SCREENS */
+if(gameOverType === "fuel"){
+  ctx.fillText("OUT OF FUEL",canvas.width/2,canvas.height/2);
+} else {
+  ctx.fillText("SHIP OVERHEATED",canvas.width/2,canvas.height/2);
+}
+
+ctx.font="20px Arial";
+ctx.fillText("Run Money: $" + runMoney,canvas.width/2,canvas.height/2+40);
 ctx.fillText("Click to return to menu",canvas.width/2,canvas.height/2+80);
 
-/* explosion pieces stay visible */
 ctx.fillStyle="orange";
 pieces.forEach(p=>ctx.fillRect(p.x,p.y,6,6));
 }
@@ -252,7 +231,6 @@ pieces.forEach(p=>ctx.fillRect(p.x,p.y,6,6));
 
 /* ================= UI BOX ================= */
 function drawBox(x,y,title,level){
-
 const w=200,h=120;
 
 ctx.strokeStyle="white";
@@ -264,7 +242,6 @@ ctx.fillText(title,x+w/2,y+25);
 
 ctx.fillText("Level "+level+"/5",x+w/2,y+50);
 
-/* button */
 ctx.fillStyle="green";
 ctx.fillRect(x+20,y+70,w-40,30);
 
@@ -272,72 +249,63 @@ ctx.fillStyle="black";
 ctx.fillText(cost(level)+"$",x+w/2,y+92);
 }
 
-/* ================= COST ================= */
+/* cost */
 function cost(l){
 return Math.floor(10*Math.pow(1.8,l));
 }
 
-/* ================= CLICK ================= */
+/* click */
 window.addEventListener("mousedown",click);
 
-function click(e){
+function click(){
 
 if(state === "menu"){
-
-  const x=e.clientX,y=e.clientY;
-
-  if(y>150 && y<270 && x>150 && x<350) buy("fuel");
-  if(y>300 && y<420 && x>150 && x<350) buy("thrust");
-  if(y>150 && y<270 && x>canvas.width-350 && x<canvas.width-150) buy("money");
-
-  state="playing";
+state = "playing";
 }
 
 if(state === "gameover"){
-  reset();
-  state="menu";
+reset();
+state = "menu";
 }
 }
 
-/* ================= BUY ================= */
+/* buy system (unchanged logic) */
 function buy(type){
 
 let lvl = type==="fuel"?fuelLevel:type==="thrust"?thrustLevel:moneyLevel;
 
-if(money < cost(lvl) || lvl>=5){
-  message="Not enough money";
-  messageTimer=120;
-  return;
+if(totalMoney < cost(lvl) || lvl>=5){
+message="Not enough money";
+messageTimer=120;
+return;
 }
 
-money -= cost(lvl);
+totalMoney -= cost(lvl);
 
 if(type==="fuel"){ fuelLevel++; fuelCap+=20; }
-if(type==="thrust"){ thrustLevel++; thrustPower+=0.1; }
+if(type==="thrust"){ thrustLevel++; thrustPower+=0.08; }
 if(type==="money"){ moneyLevel++; moneyMulti+=0.5; }
 }
 
-/* ================= RESET ================= */
+/* reset */
 function reset(){
 ship.x=canvas.width/2;
 ship.y=canvas.height/2;
 ship.vy=0;
 
-fuel=100;
+fuel=120;
 heat=0;
 distance=0;
+runMoney=0;
 exploded=false;
 pieces=[];
 }
 
-/* ================= LOOP ================= */
+/* loop */
 function loop(){
 update();
 draw();
 requestAnimationFrame(loop);
 }
 loop();
-
 </script>
-</body>
-</html>
