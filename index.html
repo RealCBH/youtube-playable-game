@@ -3,14 +3,25 @@
 <head>
 <meta charset="UTF-8">
 <title>Space Boost</title>
+
 <style>
 body {
   margin:0;
   overflow:hidden;
   background:black;
   font-family:Arial;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  height:100vh;
 }
-canvas { display:block; }
+
+/* PHONE SIZE */
+canvas {
+  width: 360px;
+  height: 640px;
+  display:block;
+}
 </style>
 </head>
 
@@ -22,8 +33,9 @@ canvas { display:block; }
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
+/* FIXED PHONE SIZE */
+canvas.width = 360;
+canvas.height = 640;
 
 /* ================= STATE ================= */
 let state = "menu";
@@ -118,6 +130,7 @@ pieces.forEach(p=>{
   p.y += p.vy;
   p.vy += 0.1;
 });
+
 }
 
 /* ================= EXPLODE ================= */
@@ -140,6 +153,7 @@ for(let i=0;i<7;i++){
 
 /* ================= DRAW ================= */
 function draw(){
+
 ctx.fillStyle="black";
 ctx.fillRect(0,0,canvas.width,canvas.height);
 
@@ -147,6 +161,7 @@ ctx.fillRect(0,0,canvas.width,canvas.height);
 ctx.fillStyle="white";
 stars.forEach(s=>ctx.fillRect(s.x,s.y,s.s,s.s));
 
+/* PLAY */
 if(state === "playing"){
 
   ctx.fillStyle="white";
@@ -168,11 +183,13 @@ if(state === "playing"){
 
   ctx.fillStyle="gray";
   ctx.fillRect(20, canvas.height/2-100, 20, 200);
+
   ctx.fillStyle="red";
   ctx.fillRect(20, canvas.height/2+100-(heat*2), 20, heat*2);
 
   ctx.fillStyle="gray";
   ctx.fillRect(canvas.width-40, canvas.height/2-100, 20, 200);
+
   ctx.fillStyle="green";
   ctx.fillRect(canvas.width-40, canvas.height/2+100-(fuel/fuelCap)*200, 20,(fuel/fuelCap)*200);
 
@@ -180,16 +197,28 @@ if(state === "playing"){
   ctx.fillText("Run: $" + runMoney,20,30);
 }
 
+/* MENU */
 if(state === "menu"){
+
 ctx.fillStyle="white";
 ctx.textAlign="center";
+
 ctx.font="30px Arial";
 ctx.fillText("SPACE BOOST",canvas.width/2,80);
+
 ctx.font="18px Arial";
 ctx.fillText("Money: $" + totalMoney,canvas.width/2,110);
+
+/* UPGRADE BOXES */
+drawBox(20,150,"Fuel Capacity",fuelLevel);
+drawBox(20,300,"Thrust Power",thrustLevel);
+drawBox(180,150,"Money Multiplier",moneyLevel);
+
 }
 
+/* GAME OVER */
 if(state === "gameover"){
+
 ctx.textAlign="center";
 ctx.fillStyle="white";
 ctx.font="30px Arial";
@@ -203,18 +232,84 @@ ctx.fillText("Click to return",canvas.width/2,canvas.height/2+80);
 
 ctx.fillStyle="orange";
 pieces.forEach(p=>ctx.fillRect(p.x,p.y,6,6));
+
 }
+}
+
+/* ================= UPGRADE SYSTEM ================= */
+function cost(l){
+  return Math.floor(10 * Math.pow(1.8, l));
+}
+
+function buy(type){
+
+let lvl = type==="fuel"?fuelLevel:
+          type==="thrust"?thrustLevel:
+          moneyLevel;
+
+if(totalMoney < cost(lvl) || lvl >= 5){
+  return;
+}
+
+totalMoney -= cost(lvl);
+
+if(type==="fuel"){
+  fuelLevel++;
+  fuelCap += 20;
+}
+
+if(type==="thrust"){
+  thrustLevel++;
+  thrustPower += 0.08;
+}
+
+if(type==="money"){
+  moneyLevel++;
+  moneyMulti += 0.5;
+}
+}
+
+/* ================= DRAW BOX ================= */
+function drawBox(x,y,title,level){
+
+ctx.strokeStyle="white";
+ctx.strokeRect(x,y,140,110);
+
+ctx.fillStyle="white";
+ctx.font="14px Arial";
+ctx.textAlign="center";
+
+ctx.fillText(title,x+70,y+25);
+ctx.fillText("Lvl "+level+"/5",x+70,y+50);
+
+ctx.fillStyle="green";
+ctx.fillRect(x+20,y+70,100,25);
+
+ctx.fillStyle="black";
+ctx.fillText(cost(level)+"$",x+70,y+88);
 }
 
 /* ================= CLICK ================= */
-window.addEventListener("mousedown", () => {
-if(state === "menu") state = "playing";
-else if(state === "gameover"){
-reset();
-state = "menu";
+window.addEventListener("mousedown", (e) => {
+
+if(state === "menu"){
+  const x = e.clientX;
+  const y = e.clientY;
+
+  if(y > 150 && y < 260 && x > 20 && x < 160) buy("fuel");
+  else if(y > 300 && y < 410 && x > 20 && x < 160) buy("thrust");
+  else if(y > 150 && y < 260 && x > 180 && x < 320) buy("money");
+  else state = "playing";
 }
+
+if(state === "gameover"){
+  reset();
+  state = "menu";
+}
+
 });
 
+/* ================= RESET ================= */
 function reset(){
 ship.x=canvas.width/2;
 ship.y=canvas.height/2;
